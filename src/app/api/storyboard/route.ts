@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import type { Scene, VisualStyle } from "@/lib/types";
 import { VISUAL_STYLES } from "@/lib/visual-styles";
+import { chat as coarenaChat, COARENA_MODEL_CHAIN } from "@/lib/coarena";
 
 interface Body {
   script: string;
@@ -15,11 +16,25 @@ interface Body {
   clipDirection?: string;
 }
 
-// Rantai model gratis Respan — dicoba berurutan sampai satu berhasil.
-// carbon sering "paused (high demand)"; muse-ember jarang kena gate.
-const MODEL_CHAIN = [
-  "google_gemini_ai/gemini-4-carbon:free",
-  "meta/muse-ember:free",
+// Rantai model gratis — dicoba berurutan sampai satu berhasil.
+// Respan: carbon sering "paused (high demand)"; muse-ember jarang kena gate.
+// Ascnd: hanya kimi/argon yang hidup, dan keduanya SELALU balas dalam bentuk SSE
+//        (content di delta.content, reasoning di delta.reasoning_content).
+const PROVIDER_CHAIN = [
+  {
+    name: "respan",
+    base: "https://api.respan.ai/api/chat/completions",
+    keyEnv: "RESPAN_API_KEY",
+    models: ["google_gemini_ai/gemini-4-carbon:free", "meta/muse-ember:free"],
+    stream: false,
+  },
+  {
+    name: "ascnd",
+    base: "https://api.ascnd.my.id/v1/chat/completions",
+    keyEnv: "ASCND_API_KEY",
+    models: ["kimi-k3-1-pro", "gemini-4-argon"],
+    stream: true,
+  },
 ];
 
 function buildPrompt(req: Body): string {
@@ -46,10 +61,38 @@ function buildPrompt(req: Body): string {
   return `Original story script:\n"""\n${req.script}\n"""\n\nInstruction:\n${lines.join("\n")}`;
 }
 
+/** Parse a JSON array of scenes out of model text (tolerates fences/preamble). */
+function extractScenes(text: string): Scene[] {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "").trim();
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
+  if (start === -1 || end === -1) return [];
+  let raw: Array<{ scene_number?: number; text?: string; image_prompt?: string }> = [];
+  try {
+    raw = JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((s, i) => ({
+      scene_number: Number(s?.scene_number ?? i + 1),
+      text: String(s?.text ?? "").trim(),
+      image_prompt: String(s?.image_prompt ?? "").trim(),
+    }))
+    .filter((s) => s.image_prompt.length > 0 || s.text.length > 0);
+}
+
 export async function POST(request: Request) {
-  const key = process.env.RESPAN_API_KEY;
-  if (!key) {
-    return NextResponse.json({ error: "Server tidak punya kunci Respan (RESPAN_API_KEY)." }, { status: 500 });
+  const keys: Record<string, string | undefined> = {
+    respan: process.env.RESPAN_API_KEY,
+    ascnd: process.env.ASCND_API_KEY,
+  };
+  if (!keys.respan && !keys.ascnd && !process.env.COARENA_API_KEY) {
+    return NextResponse.json(
+      { error: "Server tidak punya kunci model (RESPAN_API_KEY / ASCND_API_KEY)." },
+      { status: 500 },
+    );
   }
   let body: Body;
   try {
@@ -64,9 +107,38 @@ export async function POST(request: Request) {
   const prompt = buildPrompt(body);
   const errors: string[] = [];
 
-  for (const model of MODEL_CHAIN) {
+  // PRIMARY: Coarena free tier — 12 models, $0, no per-IP gate, proper tool/json support.
+  const coarenaKey = process.env.COARENA_API_KEY;
+  if (coarenaKey) {
+    for (const model of COARENA_MODEL_CHAIN) {
+      try {
+        const text = await coarenaChat(coarenaKey, {
+          model,
+          messages: [{ role: "user", content: prompt }],
+          maxTokens: 4096,
+          temperature: 0.9,
+        });
+        const parsed = extractScenes(text);
+        if (!parsed.length) {
+          errors.push(`coarena/${model} → nol scene`);
+          continue;
+        }
+        return NextResponse.json({ scenes: parsed, model: `coarena/${model}` });
+      } catch (err) {
+        errors.push(`coarena/${model} → ${err instanceof Error ? err.message : "err"}`);
+      }
+    }
+  }
+
+  for (const provider of PROVIDER_CHAIN) {
+    const key = keys[provider.keyEnv === "RESPAN_API_KEY" ? "respan" : "ascnd"];
+    if (!key) {
+      errors.push(`${provider.name} → kunci tidak terpasang`);
+      continue;
+    }
+    for (const model of provider.models) {
     try {
-      const r = await fetch("https://api.respan.ai/api/chat/completions", {
+      const r = await fetch(provider.base, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -77,19 +149,42 @@ export async function POST(request: Request) {
           messages: [{ role: "user", content: prompt }],
           temperature: 0.9,
           max_tokens: 4096,
+          ...(provider.stream ? { stream: true } : {}),
         }),
       });
 
       if (!r.ok) {
         const t = await r.text().catch(() => "");
-        errors.push(`${model} → HTTP ${r.status}${t ? `: ${t.slice(0, 120)}` : ""}`);
+        errors.push(`${provider.name}/${model} → HTTP ${r.status}${t ? `: ${t.slice(0, 120)}` : ""}`);
         continue; // coba model berikutnya
       }
 
-      const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      const text = (j?.choices?.[0]?.message?.content ?? "").trim();
+      let text = "";
+      if (provider.stream) {
+        const raw = await r.text();
+        for (const line of raw.split("\n")) {
+          const s = line.trim();
+          if (!s.startsWith("data:")) continue;
+          const chunk = s.slice(5).trim();
+          if (!chunk || chunk === "[DONE]") continue;
+          try {
+            const o = JSON.parse(chunk) as {
+              choices?: Array<{ delta?: { content?: string | null; reasoning_content?: string | null } }>;
+            };
+            const d = o?.choices?.[0]?.delta;
+            if (d?.content) text += d.content;
+            else if (d?.reasoning_content) text += d.reasoning_content; // fallback: reasoning-only model
+          } catch {
+            /* skip malformed chunk */
+          }
+        }
+        text = text.trim();
+      } else {
+        const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        text = (j?.choices?.[0]?.message?.content ?? "").trim();
+      }
       if (!text) {
-        errors.push(`${model} → kosong`);
+        errors.push(`${provider.name}/${model} → kosong`);
         continue;
       }
 
@@ -122,7 +217,8 @@ export async function POST(request: Request) {
       }
       return NextResponse.json({ scenes, model });
     } catch (err) {
-      errors.push(`${model} → ${err instanceof Error ? err.message : "err"}`);
+      errors.push(`${provider.name}/${model} → ${err instanceof Error ? err.message : "err"}`);
+    }
     }
   }
 

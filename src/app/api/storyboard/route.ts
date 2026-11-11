@@ -15,7 +15,12 @@ interface Body {
   clipDirection?: string;
 }
 
-const MODEL = "google_gemini_ai/gemini-4-carbon:free";
+// Rantai model gratis Respan — dicoba berurutan sampai satu berhasil.
+// carbon sering "paused (high demand)"; muse-ember jarang kena gate.
+const MODEL_CHAIN = [
+  "google_gemini_ai/gemini-4-carbon:free",
+  "meta/muse-ember:free",
+];
 
 function buildPrompt(req: Body): string {
   const sceneCount = Math.max(1, Math.round(req.duration / 10));
@@ -56,56 +61,73 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Naskah kosong." }, { status: 400 });
   }
 
-  try {
-    const r = await fetch("https://api.respan.ai/api/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: buildPrompt(body) }],
-        temperature: 0.9,
-        max_tokens: 4096,
-      }),
-    });
+  const prompt = buildPrompt(body);
+  const errors: string[] = [];
 
-    if (!r.ok) {
-      const t = await r.text().catch(() => "");
-      return NextResponse.json({ error: `Respan HTTP ${r.status}${t ? `: ${t.slice(0, 200)}` : ""}` }, { status: 502 });
+  for (const model of MODEL_CHAIN) {
+    try {
+      const r = await fetch("https://api.respan.ai/api/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.9,
+          max_tokens: 4096,
+        }),
+      });
+
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        errors.push(`${model} → HTTP ${r.status}${t ? `: ${t.slice(0, 120)}` : ""}`);
+        continue; // coba model berikutnya
+      }
+
+      const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const text = (j?.choices?.[0]?.message?.content ?? "").trim();
+      if (!text) {
+        errors.push(`${model} → kosong`);
+        continue;
+      }
+
+      // strip fences, slice to the JSON array
+      const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "").trim();
+      const start = cleaned.indexOf("[");
+      const end = cleaned.lastIndexOf("]");
+      if (start === -1 || end === -1) {
+        errors.push(`${model} → bukan array JSON`);
+        continue;
+      }
+
+      const raw = JSON.parse(cleaned.slice(start, end + 1)) as Array<{
+        scene_number?: number;
+        text?: string;
+        image_prompt?: string;
+      }>;
+
+      const scenes: Scene[] = raw
+        .map((s, i) => ({
+          scene_number: Number(s.scene_number ?? i + 1),
+          text: (s.text ?? "").trim() || `Scene ${i + 1}`,
+          image_prompt: (s.image_prompt ?? "").trim(),
+        }))
+        .filter((s) => s.image_prompt.length > 0 || s.text.length > 0);
+
+      if (scenes.length === 0) {
+        errors.push(`${model} → nol scene`);
+        continue;
+      }
+      return NextResponse.json({ scenes, model });
+    } catch (err) {
+      errors.push(`${model} → ${err instanceof Error ? err.message : "err"}`);
     }
-
-    const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = (j?.choices?.[0]?.message?.content ?? "").trim();
-    if (!text) return NextResponse.json({ error: "Respan mengembalikan respons kosong." }, { status: 502 });
-
-    // strip fences, slice to the JSON array
-    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "").trim();
-    const start = cleaned.indexOf("[");
-    const end = cleaned.lastIndexOf("]");
-    if (start === -1 || end === -1) return NextResponse.json({ error: "Respons bukan array JSON." }, { status: 502 });
-
-    const raw = JSON.parse(cleaned.slice(start, end + 1)) as Array<{
-      scene_number?: number;
-      text?: string;
-      image_prompt?: string;
-    }>;
-
-    const scenes: Scene[] = raw
-      .map((s, i) => ({
-        scene_number: Number(s.scene_number ?? i + 1),
-        text: (s.text ?? "").trim() || `Scene ${i + 1}`,
-        image_prompt: (s.image_prompt ?? "").trim(),
-      }))
-      .filter((s) => s.image_prompt.length > 0 || s.text.length > 0);
-
-    if (scenes.length === 0) return NextResponse.json({ error: "Nol scene dihasilkan." }, { status: 502 });
-    return NextResponse.json({ scenes, model: MODEL });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "gagal memanggil Respan" },
-      { status: 500 },
-    );
   }
+
+  return NextResponse.json(
+    { error: `Semua model gratis gagal: ${errors.join(" | ")}` },
+    { status: 502 },
+  );
 }

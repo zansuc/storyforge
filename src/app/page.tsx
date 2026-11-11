@@ -53,11 +53,6 @@ export default function Home() {
   }, []);
 
   const storyboard = async () => {
-    if (!store.geminiApiKey) {
-      toast("Isi Gemini API key dulu");
-      setKeysOpen(true);
-      return;
-    }
     if (!store.script.trim()) {
       toast("Tulis cerita dulu");
       return;
@@ -66,8 +61,9 @@ export default function Home() {
     store.setScenes([]);
     setResultUrl(null);
     try {
+      // Mode gratis dulu (route server); Gemini key hanya fallback opsional.
       const scenes = await runStoryboard(
-        store.geminiApiKey,
+        store.geminiApiKey ?? "",
         store.script,
         store.duration,
         store.visualStyle,

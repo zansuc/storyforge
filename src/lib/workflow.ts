@@ -23,8 +23,7 @@ export async function runStoryboard(
   status: StatusFn,
   extras?: { deliveryStyle?: string; deliveryDesc?: string; masterPrompt?: string; clipDirection?: string },
 ): Promise<Scene[]> {
-  status("Meminta storyboard ke Gemini…");
-  const scenes = await generateStoryboard(apiKey, {
+  const payload = {
     script,
     duration: durationSec,
     visualStyle,
@@ -32,7 +31,31 @@ export async function runStoryboard(
     deliveryDesc: extras?.deliveryDesc,
     masterPrompt: extras?.masterPrompt,
     clipDirection: extras?.clipDirection,
-  });
+  };
+
+  // 1) Free server-side brain first (Respan gemini-4-carbon:free, key di env).
+  status("Menyusun storyboard (mode gratis)…");
+  try {
+    const r = await fetch("/api/storyboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = (await r.json()) as { scenes?: Scene[]; error?: string };
+    if (r.ok && j.scenes?.length) {
+      status(`${j.scenes.length} scene dibuat.`);
+      return j.scenes;
+    }
+    if (!apiKey) throw new Error(j.error ?? "Mode gratis gagal.");
+    status("Mode gratis gagal, memakai Gemini key…");
+  } catch (e) {
+    if (!apiKey) throw e instanceof Error ? e : new Error("Mode gratis gagal.");
+    status("Mode gratis gagal, memakai Gemini key…");
+  }
+
+  // 2) Fallback: user's own Gemini key.
+  status("Meminta storyboard ke Gemini…");
+  const scenes = await generateStoryboard(apiKey, payload);
   status(`${scenes.length} scene dibuat.`);
   return scenes;
 }

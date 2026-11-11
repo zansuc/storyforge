@@ -21,12 +21,17 @@ export async function runStoryboard(
   durationSec: number,
   visualStyle: VisualStyle,
   status: StatusFn,
+  extras?: { deliveryStyle?: string; deliveryDesc?: string; masterPrompt?: string; clipDirection?: string },
 ): Promise<Scene[]> {
   status("Meminta storyboard ke Gemini…");
   const scenes = await generateStoryboard(apiKey, {
     script,
     duration: durationSec,
     visualStyle,
+    deliveryStyle: extras?.deliveryStyle,
+    deliveryDesc: extras?.deliveryDesc,
+    masterPrompt: extras?.masterPrompt,
+    clipDirection: extras?.clipDirection,
   });
   status(`${scenes.length} scene dibuat.`);
   return scenes;

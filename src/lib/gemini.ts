@@ -25,6 +25,10 @@ interface StoryboardRequest {
   script: string;
   duration: number; // total seconds
   visualStyle: VisualStyle;
+  deliveryStyle?: string; // gaya penyampaian (komedi/sejarah/edukatif)
+  deliveryDesc?: string;
+  masterPrompt?: string;
+  clipDirection?: string;
 }
 
 /**
@@ -38,14 +42,26 @@ export async function generateStoryboard(
   model = "gemini-2.5-flash",
 ): Promise<Scene[]> {
   const sceneCount = Math.max(1, Math.round(req.duration / 10));
-  const system = [
+  const lines = [
     "You are a storyboard director for an AI video generator.",
     `Visual style is "${req.visualStyle}".`,
+  ];
+  if (req.deliveryStyle) {
+    lines.push(`Storytelling delivery style: "${req.deliveryStyle}"${req.deliveryDesc ? ` — ${req.deliveryDesc}` : ""}.`);
+  }
+  if (req.masterPrompt) {
+    lines.push(`Global visual master prompt to honor in every scene: "${req.masterPrompt}".`);
+  }
+  if (req.clipDirection) {
+    lines.push(`Clip motion direction: "${req.clipDirection}".`);
+  }
+  lines.push(
     `Split the given story script into exactly ${sceneCount} scenes of 10 seconds each.`,
     "Each scene must produce a detailed English text-to-video prompt (character, setting, action, camera), style-consistent.",
     "Return ONLY a JSON array, no markdown, no commentary:",
     '[{"scene_number":1,"text":"<narration text>","image_prompt":"<detailed visual prompt>"}]',
-  ].join("\n");
+  );
+  const system = lines.join("\n");
 
   const payload = {
     contents: [

@@ -1,5 +1,5 @@
 "use client";
-// StoryForge — main page. Two-pane asymmetric split (sticky config + scrolling stage).
+// StoryForge — main page. Tokogame-style: hero + wizard 5 langkah (kiri) + studio 4 tahap (kanan).
 // language: TypeScript (React 19 client, Next App Router)
 import { useCallback, useState } from "react";
 import { Toaster, toast } from "sonner";
@@ -8,11 +8,21 @@ import { runStoryboard } from "@/lib/workflow";
 import { assembleVideo } from "@/lib/ffmpeg";
 import { ApiKeyDialog, MaskedApiIndicators } from "@/components/api-key-dialog";
 import { SceneList } from "@/components/scene-list";
-import { SettingsPanel } from "@/components/settings-panel";
+import { WizardPanel } from "@/components/wizard-panel";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Sparkles, Download, Loader2, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw, MonitorPlay } from "lucide-react";
+
+const DLV_NAME = {
+  komedi: "Santai & Komedi (mirip Sam O'Nella / Kok Bisa)",
+  sejarah: "Storytelling Sejarah (mirip Oversimplified)",
+  edukatif: "Edukatif & To-The-Point",
+} as const;
+const DLV_DESC = {
+  komedi: "Bahasa gaul, analogi kocak, ekspresi lebay",
+  sejarah: "Dramatis, humor sarkas, alur kronologis",
+  edukatif: "Penjelasan fakta yang jernih, cepat, mudah dipahami",
+} as const;
 
 export default function Home() {
   const store = useStoryForge();
@@ -62,6 +72,12 @@ export default function Home() {
         store.duration,
         store.visualStyle,
         status,
+        {
+          deliveryStyle: DLV_NAME[store.deliveryStyle],
+          deliveryDesc: DLV_DESC[store.deliveryStyle],
+          masterPrompt: store.masterPrompt,
+          clipDirection: store.clipDirection,
+        },
       );
       store.setScenes(scenes);
     } catch (err) {
@@ -106,138 +122,136 @@ export default function Home() {
   const hasScenes = store.scenes.length > 0;
 
   return (
-    <div className="grain min-h-dvh lg:grid lg:grid-cols-[minmax(340px,38%)_1fr]">
+    <div className="min-h-dvh bg-background">
       <Toaster
         position="top-center"
         toastOptions={{
-          style: {
-            background: "#141416",
-            border: "1px solid #26262a",
-            color: "#f5f5f4",
-            fontFamily: "var(--font-geist-mono)",
-            fontSize: "13px",
-          },
+          style: { background: "#ffffff", border: "1px solid #e8e4db", color: "#1a1a2e", fontSize: "13px" },
         }}
       />
 
-      {/* Left pane — sticky config */}
-      <aside className="border-border lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:border-r">
-        <div className="flex h-full flex-col gap-8 p-6 lg:p-8">
-          <header className="flex items-center justify-between">
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-lg font-semibold tracking-tight">StoryForge</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-2">
+            <div className="gradient-bg flex h-8 w-8 items-center justify-center rounded-lg">
+              <MonitorPlay className="h-4 w-4 text-white" />
             </div>
-            <button onClick={() => setKeysOpen(true)} className="mono-label hover:text-foreground transition-colors">
-              Kunci
-            </button>
-          </header>
-
-          <div className="space-y-2">
-            <span className="mono-label">Naskah</span>
-            <Textarea
-              rows={8}
-              value={store.script}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => store.setScript(e.target.value)}
-              placeholder="Ceritakan idemu. Satu paragraf cukup. Gemini memecahnya jadi scene 10 detik."
-              className="resize-none border-border bg-secondary/40 font-mono text-[13px] leading-relaxed placeholder:text-muted-foreground/60 focus-visible:ring-primary/40"
-            />
+            <span className="font-mono text-base font-bold tracking-tight">StoryForge</span>
           </div>
-
-          <SettingsPanel />
-
-          <div className="mt-auto space-y-3 pt-4">
+          <div className="flex items-center gap-3">
             <MaskedApiIndicators />
             <Button
-              onClick={storyboard}
-              disabled={store.isGeneratingStoryboard}
-              className="h-11 w-full bg-primary font-mono text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={() => setKeysOpen(true)}
+              variant="outline"
+              className="h-9 border-border bg-white font-mono text-[13px] hover:bg-secondary"
             >
-              {store.isGeneratingStoryboard ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-1.5 h-4 w-4" />
-              )}
-              {store.isGeneratingStoryboard ? "Menyusun storyboard" : "Buat storyboard"}
+              API Key
             </Button>
           </div>
         </div>
-      </aside>
+      </header>
 
-      {/* Right pane — scrolling stage */}
-      <main className="min-w-0 p-6 lg:p-10">
-        {!hasScenes ? (
-          <div className="flex h-full min-h-[60vh] flex-col items-center justify-center text-center">
-            <div className="mono-label mb-3">StoryForge</div>
-            <h1 className="max-w-[22ch] font-mono text-2xl font-medium tracking-tight text-foreground/90 md:text-3xl">
-              Cerita jadi storyboard. Storyboard jadi video.
-            </h1>
-            <p className="mt-4 max-w-[45ch] text-sm leading-relaxed text-muted-foreground">
-              Tulis naskah di kiri, atur gaya dan durasi, lalu biarkan Gemini merancang tiap scene 10 detik.
-            </p>
+      <main className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
+        {/* Hero */}
+        <section className="py-10 text-center sm:py-14">
+          <div className="mono-label">Studio video cerita</div>
+          <h1 className="mx-auto mt-3 max-w-[18ch] font-mono text-3xl font-black leading-tight tracking-tight sm:text-5xl">
+            Ubah ide jadi <span className="gradient-text">video</span> cuma dalam beberapa klik
+          </h1>
+          <p className="mx-auto mt-4 max-w-[55ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Tulis topik, biarkan AI menyusun storyboard per 10 detik, upload klip dan suara, lalu gabungkan semuanya jadi satu video.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {["Gemini", "NexaBot", "Omni Flash", "Bang Story"].map((p) => (
+              <span key={p} className="rounded-full border border-border bg-white px-3 py-1 font-mono text-[11px] text-muted-foreground">
+                {p}
+              </span>
+            ))}
           </div>
-        ) : (
-          <div className="space-y-10">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="font-mono text-xl font-medium tracking-tight">Storyboard</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {store.scenes.length} scene · {store.duration}s
-                </p>
-              </div>
-              {store.generationStatus ? (
-                <span className="mono-label text-right">{store.generationStatus}</span>
-              ) : null}
+        </section>
+
+        {/* Wizard: kiri + studio kanan */}
+        <div className="grid gap-8 lg:grid-cols-[minmax(380px,42%)_1fr]">
+          <WizardPanel onGenerateStoryboard={storyboard} onOpenKeys={() => setKeysOpen(true)} />
+
+          {/* Kanan — studio */}
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-5 border-b border-border pb-3">
+              {["Storyboard", "Voice over", "Klip scene", "Gabung video"].map((stage, i) => (
+                <div key={stage} className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-white font-mono text-[10px] font-bold text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <span className={`text-xs ${stage === "Storyboard" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                    {stage}
+                  </span>
+                </div>
+              ))}
             </div>
 
-            <SceneList
-              scenes={store.scenes}
-              aspect={store.aspectRatio}
-              resolution={store.resolution}
-              busyScenes={busyScenes}
-              setBusyScene={setBusyScene}
-              status={status}
-            />
-
-            {/* Assembly */}
-            <section className="border-t border-border pt-8">
-              {assembly.active ? (
-                <div className="mb-4 space-y-2">
-                  <Progress value={Math.round(assembly.ratio * 100)} className="h-1" />
-                  <p className="mono-label">{assembly.message}</p>
-                </div>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  onClick={assemble}
-                  disabled={busyAny}
-                  variant="outline"
-                  className="h-10 border-border bg-transparent font-mono text-[13px] hover:bg-secondary"
-                >
-                  {assembly.active ? (
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-1.5 h-4 w-4" />
-                  )}
-                  Rakit video
-                </Button>
-                {resultUrl ? (
-                  <Button
-                    asChild
-                    className="h-10 bg-primary font-mono text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
-                  >
-                    <a href={resultUrl} download="storyforge.mp4">
-                      <Download className="mr-1.5 h-4 w-4" /> Unduh .mp4
-                    </a>
-                  </Button>
-                ) : null}
+            {!hasScenes ? (
+              <div className="flex min-h-[50vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-white/50 p-10 text-center">
+                <div className="mono-label mb-3">Mode Otomatis</div>
+                <p className="max-w-[40ch] text-sm leading-relaxed text-muted-foreground">
+                  Lengkapi pengaturan di sebelah kiri, lalu klik{" "}
+                  <span className="font-semibold text-foreground">Generate Storyboard</span>. Storyboard, klip, dan voice over
+                  akan diproses di sini.
+                </p>
               </div>
-              {resultUrl ? (
-                <video src={resultUrl} className="mt-6 w-full max-w-2xl rounded-md border border-border" controls />
-              ) : null}
-            </section>
-          </div>
-        )}
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="font-mono text-xl font-bold tracking-tight">Storyboard</h2>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">
+                      {store.scenes.length} scene · {store.duration}s
+                    </p>
+                  </div>
+                  {store.generationStatus ? <span className="mono-label text-right">{store.generationStatus}</span> : null}
+                </div>
+
+                <SceneList
+                  scenes={store.scenes}
+                  aspect={store.aspectRatio}
+                  resolution={store.resolution}
+                  busyScenes={busyScenes}
+                  setBusyScene={setBusyScene}
+                  status={status}
+                />
+
+                <section className="rounded-2xl border border-border bg-white p-5">
+                  {assembly.active ? (
+                    <div className="mb-4 space-y-2">
+                      <Progress value={Math.round(assembly.ratio * 100)} className="h-1" />
+                      <p className="mono-label">{assembly.message}</p>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={assemble}
+                      disabled={busyAny || !hasScenes}
+                      className="h-11 bg-[#ff6f86] px-6 font-mono text-[13px] font-medium text-white shadow-sm hover:bg-[#f25e76]"
+                    >
+                      {assembly.active ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
+                      {assembly.active ? "Merakit…" : "Proses jadi 1 video"}
+                    </Button>
+                    {resultUrl ? (
+                      <Button asChild className="h-11 bg-[#1a1a2e] px-6 font-mono text-[13px] font-medium text-white hover:bg-[#2a2a44]">
+                        <a href={resultUrl} download="storyforge.mp4">
+                          <Download className="mr-1.5 h-4 w-4" /> Unduh .mp4
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
+                  {resultUrl ? (
+                    <video src={resultUrl} className="mt-5 w-full max-w-2xl rounded-xl border border-border" controls />
+                  ) : null}
+                </section>
+              </div>
+            )}
+          </section>
+        </div>
       </main>
 
       <ApiKeyDialog open={keysOpen} onOpenChange={setKeysOpen} />

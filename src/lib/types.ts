@@ -1,7 +1,8 @@
 // StoryForge — shared domain types
 // language: TypeScript (Next 16 App Router, client-heavy)
-export type Duration = 30 | 60 | 90;
+export type Duration = 30 | 60 | 90 | 120 | 180;
 export type VisualStyle = "Stickman" | "Cinematic" | "Anime" | "Minimalist";
+export type DeliveryStyleId = "komedi" | "sejarah" | "edukatif";
 export type AspectRatio = "9:16" | "16:9";
 export type Resolution = 720 | 1080;
 export type VoiceoverMode = "ai" | "upload";

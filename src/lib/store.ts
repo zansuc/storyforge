@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   AspectRatio,
+  DeliveryStyleId,
   Duration,
   GenerationMode,
   Resolution,
@@ -14,6 +15,7 @@ import type {
   VisualStyle,
   VoiceoverMode,
 } from "@/lib/types";
+import { MASTER_PROMPT } from "@/lib/reference-data";
 
 interface StoryForgeState {
   // --- API keys (persisted to localStorage) ---
@@ -29,6 +31,14 @@ interface StoryForgeState {
   setDuration: (d: Duration) => void;
   visualStyle: VisualStyle;
   setVisualStyle: (s: VisualStyle) => void;
+  deliveryStyle: DeliveryStyleId;
+  setDeliveryStyle: (d: DeliveryStyleId) => void;
+  voice: string;
+  setVoice: (v: string) => void;
+  masterPrompt: string;
+  setMasterPrompt: (m: string) => void;
+  clipDirection: string;
+  setClipDirection: (c: string) => void;
   aspectRatio: AspectRatio;
   setAspectRatio: (a: AspectRatio) => void;
   resolution: Resolution;
@@ -69,9 +79,17 @@ export const useStoryForge = create<StoryForgeState>()(
       setScript: (s) => set({ script: s }),
       duration: 30,
       setDuration: (d) => set({ duration: d }),
-      visualStyle: "Cinematic",
+      visualStyle: "Stickman",
       setVisualStyle: (s) => set({ visualStyle: s }),
-      aspectRatio: "9:16",
+      deliveryStyle: "komedi",
+      setDeliveryStyle: (d) => set({ deliveryStyle: d }),
+      voice: "Achernar",
+      setVoice: (v) => set({ voice: v }),
+      masterPrompt: MASTER_PROMPT,
+      setMasterPrompt: (m) => set({ masterPrompt: m }),
+      clipDirection: "",
+      setClipDirection: (c) => set({ clipDirection: c }),
+      aspectRatio: "16:9",
       setAspectRatio: (a) => set({ aspectRatio: a }),
       resolution: 720,
       setResolution: (r) => set({ resolution: r }),
@@ -108,6 +126,10 @@ export const useStoryForge = create<StoryForgeState>()(
         script: s.script,
         duration: s.duration,
         visualStyle: s.visualStyle,
+        deliveryStyle: s.deliveryStyle,
+        voice: s.voice,
+        masterPrompt: s.masterPrompt,
+        clipDirection: s.clipDirection,
         aspectRatio: s.aspectRatio,
         resolution: s.resolution,
         voiceoverMode: s.voiceoverMode,

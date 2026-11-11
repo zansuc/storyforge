@@ -1,14 +1,13 @@
 "use client";
-// StoryForge — scene list. Per scene: auto-generate via NexaBot, or manual upload.
+// StoryForge — scene list. Editorial rows with margin numbers, not uniform cards.
 // language: TypeScript (React 19 client)
 import { useRef } from "react";
 import { useStoryForge } from "@/lib/store";
 import { generateSceneClip } from "@/lib/workflow";
 import type { Scene } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Film, Loader2, Upload, Sparkles, Volume2 } from "lucide-react";
+import { Loader2, Upload, Sparkles, Volume2 } from "lucide-react";
 
 interface Props {
   aspect: "9:16" | "16:9";
@@ -58,51 +57,64 @@ function SceneRow({
         source: "nexabot",
       });
     } catch (err) {
-      status(`✖ Scene ${scene.scene_number}: ${err instanceof Error ? err.message : "gagal"}`);
+      status(`Scene ${scene.scene_number}: ${err instanceof Error ? err.message : "gagal"}`);
     } finally {
       setBusyScene(scene.scene_number, false);
     }
   };
 
   return (
-    <Card className="border-border/60">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-              {scene.scene_number}
-            </span>
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">10 dtk</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
+    <div className="grid grid-cols-[2.5rem_1fr] gap-x-5 gap-y-3 border-t border-border py-6 first:border-t-0 first:pt-4">
+      {/* Margin number */}
+      <div className="pt-0.5 font-mono text-sm tabular-nums text-muted-foreground">
+        {String(scene.scene_number).padStart(2, "0")}
+      </div>
+
+      <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-[60ch] text-[15px] leading-relaxed text-foreground/95">{scene.text}</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => fileInput.current?.click()}
+              className="h-8 font-mono text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
               <Upload className="mr-1 h-3 w-3" /> Unggah
             </Button>
-            <Button variant="outline" size="sm" onClick={handleAuto} disabled={busy || !useStoryForge.getState().nexabotApiKey}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAuto}
+              disabled={busy || !useStoryForge.getState().nexabotApiKey}
+              className="h-8 border-border bg-transparent font-mono text-xs hover:bg-secondary"
+            >
               {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
               NexaBot
             </Button>
             <Input ref={fileInput} type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleUpload} />
           </div>
         </div>
-        <p className="text-sm text-foreground/90">{scene.text}</p>
+
         {scene.image_prompt ? (
-          <details className="text-xs text-muted-foreground">
-            <summary className="cursor-pointer select-none">Prompt visual</summary>
-            <p className="mt-1 whitespace-pre-wrap font-mono">{scene.image_prompt}</p>
+          <details className="group text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none font-mono text-muted-foreground/80 hover:text-foreground">
+              Prompt visual
+            </summary>
+            <p className="mt-1.5 whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed">{scene.image_prompt}</p>
           </details>
         ) : null}
+
         {asset ? (
-          <div className="space-y-1">
-            <video src={asset.url} className="w-full rounded-md border" controls muted />
-            <p className="text-xs text-muted-foreground">
-              <Film className="mr-1 inline h-3 w-3" />
+          <div className="space-y-1.5">
+            <video src={asset.url} className="max-h-72 w-auto rounded-sm border border-border" controls muted />
+            <p className="font-mono text-[11px] text-muted-foreground">
               {asset.file.name} · {asset.source === "nexabot" ? "NexaBot" : "unggahan"} · {(asset.file.size / 1024 / 1024).toFixed(1)} MB
             </p>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -123,7 +135,7 @@ export function SceneList({ scenes, aspect, resolution, busyScenes, setBusyScene
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-0">
       {scenes.map((s) => (
         <SceneRow
           key={s.scene_number}
@@ -135,27 +147,31 @@ export function SceneList({ scenes, aspect, resolution, busyScenes, setBusyScene
           status={status}
         />
       ))}
+
       {scenes.length > 0 ? (
-        <Card className="border-dashed border-border/60">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Volume2 className="h-4 w-4" />
-              {voiceover ? (
-                <span className="text-foreground/90">
-                  Voiceover: {voiceover.file.name} · {(voiceover.file.size / 1024 / 1024).toFixed(1)} MB
-                </span>
-              ) : (
-                <span className="text-muted-foreground">Belum ada voiceover (opsional)</span>
-              )}
-            </div>
-            <div>
-              <Button variant="outline" size="sm" onClick={() => voInput.current?.click()}>
-                <Upload className="mr-1 h-3 w-3" /> Unggah .mp3
-              </Button>
-              <Input ref={voInput} type="file" accept="audio/*" className="hidden" onChange={handleVOUpload} />
-            </div>
-          </CardContent>
-        </Card>
+        <div className="mt-6 flex items-center justify-between gap-4 border border-dashed border-border p-4">
+          <div className="flex items-center gap-2.5 text-sm">
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            {voiceover ? (
+              <span className="font-mono text-[13px] text-foreground/90">
+                {voiceover.file.name} · {(voiceover.file.size / 1024 / 1024).toFixed(1)} MB
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Voiceover opsional</span>
+            )}
+          </div>
+          <div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => voInput.current?.click()}
+              className="h-8 border-border bg-transparent font-mono text-xs hover:bg-secondary"
+            >
+              <Upload className="mr-1 h-3 w-3" /> Unggah .mp3
+            </Button>
+            <Input ref={voInput} type="file" accept="audio/*" className="hidden" onChange={handleVOUpload} />
+          </div>
+        </div>
       ) : null}
     </div>
   );

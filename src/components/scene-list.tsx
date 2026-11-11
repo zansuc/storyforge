@@ -7,7 +7,7 @@ import { generateSceneClip } from "@/lib/workflow";
 import type { Scene } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Upload, Sparkles, Volume2 } from "lucide-react";
+import { Loader2, Upload, Volume2 } from "lucide-react";
 
 interface Props {
   aspect: "9:16" | "16:9";
@@ -66,7 +66,7 @@ function SceneRow({
   return (
     <div className="grid grid-cols-[2.5rem_1fr] gap-x-5 gap-y-3 border-t border-border py-6 first:border-t-0 first:pt-4">
       {/* Margin number */}
-      <div className="pt-0.5 font-mono text-sm tabular-nums text-muted-foreground">
+      <div className="pt-0.5 text-sm tabular-nums text-muted-foreground">
         {String(scene.scene_number).padStart(2, "0")}
       </div>
 
@@ -78,7 +78,7 @@ function SceneRow({
               variant="ghost"
               size="sm"
               onClick={() => fileInput.current?.click()}
-              className="h-8 font-mono text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+              className="h-8 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <Upload className="mr-1 h-3 w-3" /> Unggah
             </Button>
@@ -87,9 +87,9 @@ function SceneRow({
               size="sm"
               onClick={handleAuto}
               disabled={busy || !useStoryForge.getState().nexabotApiKey}
-              className="h-8 border-border bg-transparent font-mono text-xs hover:bg-secondary"
+              className="h-8 border-border bg-transparent text-xs hover:bg-secondary"
             >
-              {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+              {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
               NexaBot
             </Button>
             <Input ref={fileInput} type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleUpload} />
@@ -98,17 +98,17 @@ function SceneRow({
 
         {scene.image_prompt ? (
           <details className="group text-xs text-muted-foreground">
-            <summary className="cursor-pointer select-none font-mono text-muted-foreground/80 hover:text-foreground">
+            <summary className="cursor-pointer select-none text-muted-foreground/80 hover:text-foreground">
               Prompt visual
             </summary>
-            <p className="mt-1.5 whitespace-pre-wrap font-mono text-[11.5px] leading-relaxed">{scene.image_prompt}</p>
+            <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed">{scene.image_prompt}</p>
           </details>
         ) : null}
 
         {asset ? (
           <div className="space-y-1.5">
             <video src={asset.url} className="max-h-72 w-auto rounded-sm border border-border" controls muted />
-            <p className="font-mono text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {asset.file.name} · {asset.source === "nexabot" ? "NexaBot" : "unggahan"} · {(asset.file.size / 1024 / 1024).toFixed(1)} MB
             </p>
           </div>
@@ -153,7 +153,7 @@ export function SceneList({ scenes, aspect, resolution, busyScenes, setBusyScene
           <div className="flex items-center gap-2.5 text-sm">
             <Volume2 className="h-4 w-4 text-muted-foreground" />
             {voiceover ? (
-              <span className="font-mono text-[13px] text-foreground/90">
+              <span className="text-[13px] text-foreground/90">
                 {voiceover.file.name} · {(voiceover.file.size / 1024 / 1024).toFixed(1)} MB
               </span>
             ) : (
@@ -165,7 +165,7 @@ export function SceneList({ scenes, aspect, resolution, busyScenes, setBusyScene
               variant="outline"
               size="sm"
               onClick={() => voInput.current?.click()}
-              className="h-8 border-border bg-transparent font-mono text-xs hover:bg-secondary"
+              className="h-8 border-border bg-transparent text-xs hover:bg-secondary"
             >
               <Upload className="mr-1 h-3 w-3" /> Unggah .mp3
             </Button>

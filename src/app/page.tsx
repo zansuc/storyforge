@@ -1,5 +1,5 @@
 "use client";
-// StoryForge — main page. Tokogame-style: hero + wizard 5 langkah (kiri) + studio 4 tahap (kanan).
+// StoryForge — main page. Workbench layout: config rail (left) + canvas stage (right).
 // language: TypeScript (React 19 client, Next App Router)
 import { useCallback, useState } from "react";
 import { Toaster, toast } from "sonner";
@@ -11,11 +11,11 @@ import { SceneList } from "@/components/scene-list";
 import { WizardPanel } from "@/components/wizard-panel";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Download, Loader2, RefreshCw, MonitorPlay } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const DLV_NAME = {
-  komedi: "Santai & Komedi (mirip Sam O'Nella / Kok Bisa)",
-  sejarah: "Storytelling Sejarah (mirip Oversimplified)",
+  komedi: "Santai & Komedi",
+  sejarah: "Storytelling Sejarah",
   edukatif: "Edukatif & To-The-Point",
 } as const;
 const DLV_DESC = {
@@ -126,89 +126,52 @@ export default function Home() {
       <Toaster
         position="top-center"
         toastOptions={{
-          style: { background: "#ffffff", border: "1px solid #e8e4db", color: "#1a1a2e", fontSize: "13px" },
+          style: { background: "#1c1b19", border: "none", color: "#fdfcf8", fontSize: "13px", borderRadius: "4px" },
         }}
       />
 
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2">
-            <div className="gradient-bg flex h-8 w-8 items-center justify-center rounded-lg">
-              <MonitorPlay className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-mono text-base font-bold tracking-tight">StoryForge</span>
-          </div>
-          <div className="flex items-center gap-3">
+      <header className="border-b border-border bg-background">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="display text-lg font-bold tracking-tight">StoryForge</div>
+          <div className="flex items-center gap-4">
             <MaskedApiIndicators />
-            <Button
-              onClick={() => setKeysOpen(true)}
-              variant="outline"
-              className="h-9 border-border bg-white font-mono text-[13px] hover:bg-secondary"
-            >
-              API Key
-            </Button>
+            <button onClick={() => setKeysOpen(true)} className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              API key
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
-        {/* Hero */}
-        <section className="py-10 text-center sm:py-14">
-          <div className="mono-label">Studio video cerita</div>
-          <h1 className="mx-auto mt-3 max-w-[18ch] font-mono text-3xl font-black leading-tight tracking-tight sm:text-5xl">
-            Ubah ide jadi <span className="gradient-text">video</span> cuma dalam beberapa klik
+      <main className="mx-auto max-w-6xl px-6 pb-24 pt-10">
+        <div className="mb-10 max-w-2xl">
+          <h1 className="display text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl">
+            Ubah ide jadi video, 10 detik per scene.
           </h1>
-          <p className="mx-auto mt-4 max-w-[55ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Tulis topik, biarkan AI menyusun storyboard per 10 detik, upload klip dan suara, lalu gabungkan semuanya jadi satu video.
+          <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
+            Tulis topik. StoryForge menyusun storyboard per 10 detik, membuat klip dan voice over, lalu menggabungkannya jadi satu video siap unggah.
           </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            {["Gemini", "NexaBot", "Omni Flash", "Bang Story"].map((p) => (
-              <span key={p} className="rounded-full border border-border bg-white px-3 py-1 font-mono text-[11px] text-muted-foreground">
-                {p}
-              </span>
-            ))}
+        </div>
+
+        <div className="grid gap-10 lg:grid-cols-[360px_1fr]">
+          <div className="lg:sticky lg:top-8 lg:self-start">
+            <WizardPanel onGenerateStoryboard={storyboard} onOpenKeys={() => setKeysOpen(true)} />
           </div>
-        </section>
 
-        {/* Wizard: kiri + studio kanan */}
-        <div className="grid gap-8 lg:grid-cols-[minmax(380px,42%)_1fr]">
-          <WizardPanel onGenerateStoryboard={storyboard} onOpenKeys={() => setKeysOpen(true)} />
-
-          {/* Kanan — studio */}
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center gap-5 border-b border-border pb-3">
-              {["Storyboard", "Voice over", "Klip scene", "Gabung video"].map((stage, i) => (
-                <div key={stage} className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-white font-mono text-[10px] font-bold text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  <span className={`text-xs ${stage === "Storyboard" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                    {stage}
-                  </span>
-                </div>
-              ))}
-            </div>
-
+          <section>
             {!hasScenes ? (
-              <div className="flex min-h-[50vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-white/50 p-10 text-center">
-                <div className="mono-label mb-3">Mode Otomatis</div>
-                <p className="max-w-[40ch] text-sm leading-relaxed text-muted-foreground">
-                  Lengkapi pengaturan di sebelah kiri, lalu klik{" "}
-                  <span className="font-semibold text-foreground">Generate Storyboard</span>. Storyboard, klip, dan voice over
-                  akan diproses di sini.
+              <div className="rounded-lg border border-dashed border-border p-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Pengaturan di kiri menentukan hasil di sini. Klik{" "}
+                  <span className="font-medium text-foreground">Generate storyboard</span> untuk mulai.
                 </p>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <h2 className="font-mono text-xl font-bold tracking-tight">Storyboard</h2>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">
-                      {store.scenes.length} scene · {store.duration}s
-                    </p>
-                  </div>
-                  {store.generationStatus ? <span className="mono-label text-right">{store.generationStatus}</span> : null}
+              <div className="space-y-8">
+                <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
+                  <h2 className="display text-xl font-bold tracking-tight">Storyboard</h2>
+                  <span className="text-sm text-muted-foreground">
+                    {store.scenes.length} scene · {store.duration} detik
+                  </span>
                 </div>
 
                 <SceneList
@@ -220,32 +183,32 @@ export default function Home() {
                   status={status}
                 />
 
-                <section className="rounded-2xl border border-border bg-white p-5">
+                <section className="border-t border-border pt-6">
                   {assembly.active ? (
                     <div className="mb-4 space-y-2">
                       <Progress value={Math.round(assembly.ratio * 100)} className="h-1" />
-                      <p className="mono-label">{assembly.message}</p>
+                      <p className="text-sm text-muted-foreground">{assembly.message}</p>
                     </div>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-3">
                     <Button
                       onClick={assemble}
                       disabled={busyAny || !hasScenes}
-                      className="h-11 bg-[#ff6f86] px-6 font-mono text-[13px] font-medium text-white shadow-sm hover:bg-[#f25e76]"
+                      className="h-10 bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                     >
-                      {assembly.active ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
-                      {assembly.active ? "Merakit…" : "Proses jadi 1 video"}
+                      {assembly.active ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Proses jadi satu video
                     </Button>
                     {resultUrl ? (
-                      <Button asChild className="h-11 bg-[#1a1a2e] px-6 font-mono text-[13px] font-medium text-white hover:bg-[#2a2a44]">
+                      <Button asChild variant="outline" className="h-10 border-border bg-transparent text-sm hover:bg-secondary">
                         <a href={resultUrl} download="storyforge.mp4">
-                          <Download className="mr-1.5 h-4 w-4" /> Unduh .mp4
+                          Unduh .mp4
                         </a>
                       </Button>
                     ) : null}
                   </div>
                   {resultUrl ? (
-                    <video src={resultUrl} className="mt-5 w-full max-w-2xl rounded-xl border border-border" controls />
+                    <video src={resultUrl} className="mt-6 w-full max-w-2xl rounded-md border border-border" controls />
                   ) : null}
                 </section>
               </div>

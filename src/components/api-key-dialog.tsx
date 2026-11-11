@@ -23,7 +23,7 @@ function StatusDot({ status }: { status: KeyStatus }) {
           : "bg-muted-foreground/40";
   const text = status === "checking" ? "cek" : status === "ok" ? "aktif" : status === "err" ? "error" : "kosong";
   return (
-    <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+    <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
       <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
       {text}
     </span>
@@ -64,20 +64,20 @@ function KeyRow({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete="off"
-          className="border-border bg-secondary/40 font-mono text-[13px]"
+          className="border-border bg-secondary/40 text-[13px]"
         />
         <Button
           variant="outline"
           size="sm"
           onClick={onCheck}
           disabled={busy || !value}
-          className="border-border bg-transparent font-mono text-xs hover:bg-secondary"
+          className="border-border bg-transparent text-xs hover:bg-secondary"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Tes"}
         </Button>
       </div>
       {statusMsg && status !== "idle" ? (
-        <p className={`font-mono text-[11px] ${status === "ok" ? "text-primary" : status === "err" ? "text-destructive" : "text-muted-foreground"}`}>
+        <p className={`text-[11px] ${status === "ok" ? "text-primary" : status === "err" ? "text-destructive" : "text-muted-foreground"}`}>
           {statusMsg}
         </p>
       ) : null}
@@ -118,7 +118,7 @@ export function ApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-border bg-card sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-mono text-base font-medium tracking-tight">Kunci API</DialogTitle>
+          <DialogTitle className="text-base font-medium tracking-tight">Kunci API</DialogTitle>
           <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
             Kunci disimpan di localStorage browser ini — tidak dikirim ke server StoryForge.
           </DialogDescription>
@@ -144,7 +144,7 @@ export function ApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           />
         </div>
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} className="font-mono text-[13px]">
+          <Button onClick={() => onOpenChange(false)} className="text-[13px]">
             Selesai
           </Button>
         </DialogFooter>
@@ -162,7 +162,7 @@ export function MaskedApiIndicators() {
         { name: "Gemini", ok: !!geminiApiKey },
         { name: "NexaBot", ok: !!nexabotApiKey },
       ].map((k) => (
-        <span key={k.name} className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+        <span key={k.name} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <span className={`h-1.5 w-1.5 rounded-full ${k.ok ? "bg-primary" : "bg-muted-foreground/40"}`} />
           {k.name}
         </span>

@@ -79,7 +79,7 @@ export const useStoryForge = create<StoryForgeState>()(
       setScript: (s) => set({ script: s }),
       duration: 30,
       setDuration: (d) => set({ duration: d }),
-      visualStyle: "Stickman",
+      visualStyle: "stickman_putih",
       setVisualStyle: (s) => set({ visualStyle: s }),
       deliveryStyle: "komedi",
       setDeliveryStyle: (d) => set({ deliveryStyle: d }),

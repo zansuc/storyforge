@@ -2,6 +2,7 @@
 // Real calls against generativelanguage.googleapis.com v1beta.
 // language: TypeScript, runtime: browser (fetch)
 import type { Scene, VisualStyle } from "@/lib/types";
+import { VISUAL_STYLES } from "@/lib/visual-styles";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -42,10 +43,16 @@ export async function generateStoryboard(
   model = "gemini-2.5-flash",
 ): Promise<Scene[]> {
   const sceneCount = Math.max(1, Math.round(req.duration / 10));
+  const styleDef = VISUAL_STYLES.find((s) => s.id === req.visualStyle);
+  const styleLabel = styleDef?.label ?? req.visualStyle;
+  const stylePrompt = styleDef?.prompt ?? "";
   const lines = [
     "You are a storyboard director for an AI video generator.",
-    `Visual style is "${req.visualStyle}".`,
+    `Visual style: "${styleLabel}".`,
   ];
+  if (stylePrompt) {
+    lines.push(`Visual style description to honor in every prompt: "${stylePrompt}".`);
+  }
   if (req.deliveryStyle) {
     lines.push(`Storytelling delivery style: "${req.deliveryStyle}"${req.deliveryDesc ? ` — ${req.deliveryDesc}` : ""}.`);
   }

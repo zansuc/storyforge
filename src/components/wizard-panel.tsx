@@ -1,14 +1,24 @@
 "use client";
 // StoryForge — wizard panel (5 langkah). Editorial tool style, no emoji, Fraunces display.
 // language: TypeScript (React 19 client)
+import { useCallback, useEffect, useState } from "react";
 import { useStoryForge, sceneCount } from "@/lib/store";
 import { VOICES, DELIVERY_STYLES, MASTER_PROMPT } from "@/lib/reference-data";
+import { VISUAL_STYLES } from "@/lib/visual-styles";
+import { STYLE_PREVIEWS } from "@/lib/visual-previews";
+import { VisualStylePicker } from "@/components/visual-style-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { AspectRatio, DeliveryStyleId, Duration, Resolution } from "@/lib/types";
+
+interface TrendIdea {
+  title: string;
+  source: string;
+  link: string;
+}
 
 const DURATIONS: { v: Duration; t: string }[] = [
   { v: 30, t: "30 dtk" },
@@ -18,13 +28,7 @@ const DURATIONS: { v: Duration; t: string }[] = [
   { v: 180, t: "3 mnt" },
 ];
 
-const TRENDING = [
-  "Rahasia AC Alamiah Mesir Kuno",
-  "Kenapa Kucing Takut Timun?",
-  "Sejarah Cepat: Kemerdekaan",
-  "Mitos vs Fakta Otak Manusia",
-  "Cara Kerja Internet dalam 1 Menit",
-];
+// trending ideas are fetched live from /api/trending (Google News Indonesia RSS)
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -46,6 +50,34 @@ export function WizardPanel({
   onOpenKeys: () => void;
 }) {
   const store = useStoryForge();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [ideas, setIdeas] = useState<TrendIdea[]>([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendErr, setTrendErr] = useState<string>("");
+
+  const loadTrending = useCallback(async () => {
+    setTrendLoading(true);
+    setTrendErr("");
+    try {
+      const r = await fetch("/api/trending", { cache: "no-store" });
+      const j = await r.json();
+      if (Array.isArray(j.ideas) && j.ideas.length > 0) setIdeas(j.ideas);
+      else setTrendErr(j.error || "kosong");
+    } catch (e) {
+      setTrendErr(e instanceof Error ? e.message : "gagal");
+    } finally {
+      setTrendLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // defer initial load out of the sync effect body (avoids cascading setState)
+    const t = setTimeout(() => void loadTrending(), 0);
+    return () => clearTimeout(t);
+  }, [loadTrending]);
+
+  const activeStyle = VISUAL_STYLES.find((s) => s.id === store.visualStyle) ?? VISUAL_STYLES[0];
+  const activePreview = STYLE_PREVIEWS[activeStyle.id];
 
   return (
     <div className="space-y-8">
@@ -58,27 +90,34 @@ export function WizardPanel({
           className="resize-none bg-background text-sm leading-relaxed"
         />
         <div className="space-y-1.5">
-          <Label className="eyebrow">Trending hari ini</Label>
-          <div className="flex flex-wrap gap-1.5">
-            {TRENDING.map((t) => (
-              <button
-                key={t}
-                onClick={() => store.setScript(t)}
-                className="rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-foreground hover:text-foreground"
-              >
-                {t}
-              </button>
-            ))}
+          <div className="flex items-center justify-between">
+            <Label className="eyebrow">Trending hari ini</Label>
             <button
-              onClick={() => {
-                const shuffled = [...TRENDING].sort(() => Math.random() - 0.5);
-                store.setScript(shuffled[0]);
-              }}
-              className="rounded-sm border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={loadTrending}
+              disabled={trendLoading}
+              className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
             >
-              Muat ulang
+              {trendLoading ? "memuat…" : "muat ulang"}
             </button>
           </div>
+          <div className="flex flex-wrap gap-1.5">
+            {ideas.slice(0, 8).map((t, i) => (
+              <button
+                key={`${t.title}-${i}`}
+                onClick={() => store.setScript(t.title)}
+                title={t.source ? `Sumber: ${t.source}` : undefined}
+                className="max-w-full truncate rounded-sm border border-border bg-background px-2.5 py-1 text-left text-xs text-muted-foreground transition hover:border-foreground hover:text-foreground"
+              >
+                {t.title}
+              </button>
+            ))}
+            {ideas.length === 0 && !trendLoading ? (
+              <span className="text-xs text-muted-foreground/70">
+                {trendErr ? `Gagal: ${trendErr}` : "Belum ada headline."}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-[11px] text-muted-foreground/70">Sumber: Google News Indonesia (RSS), realtime.</p>
         </div>
       </Step>
 
@@ -123,32 +162,37 @@ export function WizardPanel({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="eyebrow">Gaya visual</Label>
-            <Select value={store.visualStyle} onValueChange={(v) => store.setVisualStyle(v as never)}>
-              <SelectTrigger className="w-full bg-background text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover">
-                {["Stickman", "Cinematic", "Anime", "Minimalist"].map((s) => (
-                  <SelectItem key={s} value={s} className="text-sm">
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="eyebrow">Preset master</Label>
-            <Button
-              variant="outline"
-              onClick={() => store.setMasterPrompt(MASTER_PROMPT)}
-              className="w-full bg-background text-sm hover:bg-secondary"
-            >
-              Reset ke default
-            </Button>
-          </div>
+        <div className="space-y-1.5">
+          <Label className="eyebrow">Gaya visual</Label>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex w-full items-center gap-3 rounded-sm border border-border bg-background p-2 text-left transition hover:border-foreground"
+          >
+            <span className="h-10 w-14 shrink-0 overflow-hidden rounded-sm bg-secondary">
+              {activePreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={activePreview} alt={activeStyle.label} className="h-full w-full object-cover" />
+              ) : (
+                <span className="block h-full w-full" style={{ background: "linear-gradient(135deg,#f6e7d3,#e8c9a0)" }} />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-foreground">{activeStyle.label}</span>
+              <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
+                {activeStyle.cat} · ganti gaya
+              </span>
+            </span>
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="eyebrow">Preset master</Label>
+          <Button
+            variant="outline"
+            onClick={() => store.setMasterPrompt(MASTER_PROMPT)}
+            className="w-full bg-background text-sm hover:bg-secondary"
+          >
+            Reset ke default
+          </Button>
         </div>
 
         <div className="space-y-2">
@@ -257,6 +301,13 @@ export function WizardPanel({
           </button>
         </p>
       </div>
+
+      <VisualStylePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        value={store.visualStyle}
+        onSelect={(id) => store.setVisualStyle(id)}
+      />
     </div>
   );
 }

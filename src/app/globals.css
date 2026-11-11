@@ -149,3 +149,65 @@
   font-style: normal;
   font-optical-sizing: auto;
 }
+
+/* Smooth scroll globally */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Card entrance — picker grid + staggered reveal */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Dialog overlay + content fade (shadcn data-state hooks) */
+@keyframes sfFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sfZoomIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+[data-slot="dialog-overlay"][data-state="open"],
+[data-radix-popper-content-wrapper],
+div[data-state="open"][role="dialog"] {
+  animation: sfFadeIn 0.18s ease-out;
+}
+
+div[role="dialog"][data-state="open"] {
+  animation: sfZoomIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

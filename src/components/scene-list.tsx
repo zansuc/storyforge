@@ -1,20 +1,14 @@
 "use client";
 // StoryForge — scene list. Editorial rows with margin numbers, not uniform cards.
 // language: TypeScript (React 19 client)
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStoryForge } from "@/lib/store";
 import { generateSceneClip } from "@/lib/workflow";
+import { loadSceneImage } from "@/lib/scene-image";
 import type { Scene } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Upload, Volume2, ImagePlus } from "lucide-react";
-
-/** Build a free Pollinations image URL from a scene's visual prompt. */
-function sceneImageUrl(prompt: string, aspect: "9:16" | "16:9", seed: number): string {
-  const [w, h] = aspect === "9:16" ? [540, 960] : [960, 540];
-  const p = (prompt || "colorful storyboard frame").slice(0, 480);
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(p)}?width=${w}&height=${h}&nologo=true&seed=${seed}`;
-}
 
 interface Props {
   aspect: "9:16" | "16:9";
@@ -37,7 +31,38 @@ function SceneRow({
   const fileInput = useRef<HTMLInputElement>(null);
   const [seed, setSeed] = useState<number>(() => (scene.scene_number * 7919 + 13) % 100000);
   const [showImage, setShowImage] = useState(true);
-  const imgUrl = scene.image_prompt ? sceneImageUrl(scene.image_prompt, aspect, seed) : null;
+  const [imgLoading, setImgLoading] = useState(true);
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+
+  const hasPrompt = Boolean(scene.image_prompt);
+  useEffect(() => {
+    if (!hasPrompt) {
+      setImgLoading(false);
+      return;
+    }
+    let alive = true;
+    setImgLoading(true);
+    setShowImage(true);
+    const [w, h] = aspect === "9:16" ? [540, 960] : [960, 540];
+    loadSceneImage(scene.image_prompt as string, w, h, seed)
+      .then((url) => {
+        if (alive) {
+          setImgSrc(url);
+          setImgLoading(false);
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setImgLoading(false);
+          setShowImage(false);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [scene.image_prompt, aspect, seed, hasPrompt]);
+
+  const imgUrl = imgSrc;
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -88,7 +113,11 @@ function SceneRow({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSeed(Math.floor(Math.random() * 100000))}
+                onClick={() => {
+                  setImgLoading(true);
+                  setShowImage(true);
+                  setSeed(Math.floor(Math.random() * 100000));
+                }}
                 className="h-8 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
               >
                 <ImagePlus className="mr-1 h-3 w-3" /> Gambar
@@ -117,17 +146,26 @@ function SceneRow({
         </div>
 
         {imgUrl && showImage ? (
-          <div className="overflow-hidden rounded-sm border border-border bg-secondary">
+          <div className="relative overflow-hidden rounded-sm border border-border bg-secondary">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               key={imgUrl}
               src={imgUrl}
               alt={`Pratinjau scene ${scene.scene_number}`}
               loading="lazy"
+              onLoad={() => setImgLoading(false)}
               onError={() => setShowImage(false)}
               className="block w-full"
               style={{ aspectRatio: aspect === "9:16" ? "9 / 16" : "16 / 9", maxWidth: aspect === "9:16" ? 260 : "100%" }}
             />
+            {imgLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-secondary" style={{ maxWidth: aspect === "9:16" ? 260 : "100%" }}>
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-[11px]">memproses gambar…</span>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

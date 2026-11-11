@@ -1,13 +1,20 @@
 "use client";
 // StoryForge — scene list. Editorial rows with margin numbers, not uniform cards.
 // language: TypeScript (React 19 client)
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useStoryForge } from "@/lib/store";
 import { generateSceneClip } from "@/lib/workflow";
 import type { Scene } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Upload, Volume2 } from "lucide-react";
+import { Loader2, Upload, Volume2, ImagePlus } from "lucide-react";
+
+/** Build a free Pollinations image URL from a scene's visual prompt. */
+function sceneImageUrl(prompt: string, aspect: "9:16" | "16:9", seed: number): string {
+  const [w, h] = aspect === "9:16" ? [540, 960] : [960, 540];
+  const p = (prompt || "colorful storyboard frame").slice(0, 480);
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(p)}?width=${w}&height=${h}&nologo=true&seed=${seed}`;
+}
 
 interface Props {
   aspect: "9:16" | "16:9";
@@ -28,6 +35,9 @@ function SceneRow({
   const asset = useStoryForge((s) => s.assets[scene.scene_number]);
   const setAsset = useStoryForge((s) => s.setAsset);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [seed, setSeed] = useState<number>(() => (scene.scene_number * 7919 + 13) % 100000);
+  const [showImage, setShowImage] = useState(true);
+  const imgUrl = scene.image_prompt ? sceneImageUrl(scene.image_prompt, aspect, seed) : null;
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -74,6 +84,16 @@ function SceneRow({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p className="max-w-[60ch] text-[15px] leading-relaxed text-foreground/95">{scene.text}</p>
           <div className="flex shrink-0 items-center gap-2">
+            {imgUrl ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSeed(Math.floor(Math.random() * 100000))}
+                className="h-8 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <ImagePlus className="mr-1 h-3 w-3" /> Gambar
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"
@@ -95,6 +115,21 @@ function SceneRow({
             <Input ref={fileInput} type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleUpload} />
           </div>
         </div>
+
+        {imgUrl && showImage ? (
+          <div className="overflow-hidden rounded-sm border border-border bg-secondary">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={imgUrl}
+              src={imgUrl}
+              alt={`Pratinjau scene ${scene.scene_number}`}
+              loading="lazy"
+              onError={() => setShowImage(false)}
+              className="block w-full"
+              style={{ aspectRatio: aspect === "9:16" ? "9 / 16" : "16 / 9", maxWidth: aspect === "9:16" ? 260 : "100%" }}
+            />
+          </div>
+        ) : null}
 
         {scene.image_prompt ? (
           <details className="group text-xs text-muted-foreground">

@@ -38,8 +38,11 @@ type ChatOpts = {
   jsonSchema?: unknown;
 };
 
-/** Plain chat completion. Returns assistant text ("" if the model emitted none). */
-export async function chat(apiKey: string, opts: ChatOpts): Promise<string> {
+type ChatResult = { text: string; requestId: string };
+
+/** Plain chat completion. Returns assistant text plus the Coarena request id
+ *  used for /feedback (header form `req_...`; the body `id` is rejected). */
+export async function chatDetailed(apiKey: string, opts: ChatOpts): Promise<ChatResult> {
   const payload: Record<string, unknown> = {
     model: opts.model,
     messages: opts.messages,
@@ -60,19 +63,32 @@ export async function chat(apiKey: string, opts: ChatOpts): Promise<string> {
     const t = await r.text().catch(() => "");
     throw new Error(`coarena/${opts.model} HTTP ${r.status}${t ? `: ${t.slice(0, 160)}` : ""}`);
   }
-  const j = (await r.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
+  const requestId =
+    r.headers.get("x-coarena-request-id") ?? r.headers.get("x-request-id") ?? "";
+  const j = (await r.json()) as { id?: string; choices?: Array<{ message?: { content?: string | null } }> };
   const text = (j?.choices?.[0]?.message?.content ?? "").trim();
   if (!text) throw new Error(`coarena/${opts.model} → kosong`);
+  return { text, requestId: requestId || (j?.id ?? "") };
+}
+
+/** Plain chat completion. Returns assistant text ("" if the model emitted none). */
+export async function chat(apiKey: string, opts: ChatOpts): Promise<string> {
+  const { text } = await chatDetailed(apiKey, opts);
   return text;
 }
 
-/** Rate a previous reply: +1 good, -1 bad. Fire-and-forget by design. */
-export async function feedback(apiKey: string, replyId: string, rating: 1 | -1): Promise<boolean> {
+/** Rate a previous reply: +1 good, -1 bad. Needs the reply's request_id
+ *  (the response body `id`, or the `x-coarena-request-id` header). */
+export async function feedback(
+  apiKey: string,
+  requestId: string,
+  rating: 1 | -1,
+): Promise<boolean> {
   try {
     const r = await fetch(`${BASE}/feedback`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ id: replyId, rating }),
+      body: JSON.stringify({ request_id: requestId, rating }),
       cache: "no-store",
     });
     return r.ok;

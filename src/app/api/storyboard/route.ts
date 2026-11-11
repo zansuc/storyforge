@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import type { Scene, VisualStyle } from "@/lib/types";
 import { VISUAL_STYLES } from "@/lib/visual-styles";
-import { chat as coarenaChat, COARENA_MODEL_CHAIN } from "@/lib/coarena";
+import { chatDetailed as coarenaChat, COARENA_MODEL_CHAIN } from "@/lib/coarena";
 
 interface Body {
   script: string;
@@ -112,18 +112,22 @@ export async function POST(request: Request) {
   if (coarenaKey) {
     for (const model of COARENA_MODEL_CHAIN) {
       try {
-        const text = await coarenaChat(coarenaKey, {
+        const res = await coarenaChat(coarenaKey, {
           model,
           messages: [{ role: "user", content: prompt }],
           maxTokens: 4096,
           temperature: 0.9,
         });
-        const parsed = extractScenes(text);
+        const parsed = extractScenes(res.text);
         if (!parsed.length) {
           errors.push(`coarena/${model} → nol scene`);
           continue;
         }
-        return NextResponse.json({ scenes: parsed, model: `coarena/${model}` });
+        return NextResponse.json({
+          scenes: parsed,
+          model: `coarena/${model}`,
+          requestId: res.requestId,
+        });
       } catch (err) {
         errors.push(`coarena/${model} → ${err instanceof Error ? err.message : "err"}`);
       }
